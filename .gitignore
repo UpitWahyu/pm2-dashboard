@@ -1,0 +1,25 @@
+# deps & build
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+
+# env & secrets — JANGAN commit nilai asli
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+logs/
+pm2-*.log
+
+# editor / os
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# test & coverage
+coverage/
+.vite/

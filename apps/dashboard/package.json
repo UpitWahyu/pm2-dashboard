@@ -1,0 +1,7 @@
+{
+  "name": "dashboard",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "PM2 dashboard pusat: Vue 3 UI + backend proxy"
+}

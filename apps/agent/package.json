@@ -1,0 +1,7 @@
+{
+  "name": "agent",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "PM2 agent per VPS: REST + WebSocket untuk kontrol dan log PM2"
+}

@@ -1,0 +1,7 @@
+{
+  "name": "@pm2-dashboard/shared",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Type & skema API bersama (agent ↔ dashboard)"
+}

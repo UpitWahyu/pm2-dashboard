@@ -1,6 +1,6 @@
 # PM2 Dashboard — Implementation Plan
 
-> **Status:** Rencana fase 1 (arsitektur + repo awal). Implementasi menyusul.
+> **Status:** Fase 0–2 selesai (agent lengkap: list, kontrol, logs tail, WS live — terverifikasi nyata di VPS). Fase 3 (dashboard UI) menyusul.
 
 **Goal:** Dashboard web untuk mengontrol app PM2 langsung dari browser, termasuk app PM2 di VPS lain — mulai/stop/restart/delete, lihat status & log real-time, semua dari satu tampilan.
 

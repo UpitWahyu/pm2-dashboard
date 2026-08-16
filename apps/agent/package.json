@@ -3,5 +3,26 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "PM2 agent per VPS: REST + WebSocket untuk kontrol dan log PM2"
+  "description": "PM2 agent per VPS: REST + WebSocket untuk kontrol dan log PM2",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fastify/websocket": "^11.3.0",
+    "@pm2-dashboard/shared": "workspace:*",
+    "dotenv": "^17.4.2",
+    "fastify": "^5.12.0",
+    "pm2": "^7.0.3",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.23.12",
+    "typescript": "^5.9.0",
+    "vitest": "^4.1.10"
+  }
 }

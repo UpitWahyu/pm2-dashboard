@@ -3,5 +3,13 @@
   "private": true,
   "version": "0.1.0",
   "description": "Central dashboard untuk kontrol PM2 multi-server (agent + web UI)",
-  "packageManager": "pnpm@9.15.0"
+  "packageManager": "pnpm@9.15.0",
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"]
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test"
+  }
 }

@@ -32,6 +32,16 @@ export interface AgentHealth {
   pm2Connected: boolean;
 }
 
+export interface ServerSummary {
+  name: string;
+  online: boolean;
+  latencyMs: number | null;
+  error: string | null;
+  counts: { online: number; stopped: number; errored: number; other: number; total: number };
+  cpu: number;
+  memory: number;
+}
+
 export type LogStream = "all" | "out" | "err";
 
 export interface LogTailResult {

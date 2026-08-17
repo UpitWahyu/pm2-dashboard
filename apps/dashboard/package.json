@@ -3,5 +3,39 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "PM2 dashboard pusat: Vue 3 UI + backend proxy"
+  "description": "PM2 dashboard pusat: Vue 3 UI + backend Fastify proxy",
+  "scripts": {
+    "dev": "vite",
+    "dev:server": "tsx watch src/server/index.ts",
+    "build:web": "vue-tsc --noEmit -p tsconfig.web.json && vite build",
+    "build:server": "tsc -p tsconfig.json",
+    "build": "pnpm build:web && pnpm build:server",
+    "start": "node dist-server/index.js",
+    "typecheck:server": "tsc --noEmit -p tsconfig.json",
+    "typecheck": "pnpm typecheck:server && vue-tsc --noEmit -p tsconfig.web.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.1.2",
+    "@fastify/jwt": "^10.2.2",
+    "@fastify/static": "^10.1.3",
+    "@fastify/websocket": "^11.3.0",
+    "@pm2-dashboard/shared": "workspace:*",
+    "dotenv": "^17.4.2",
+    "fastify": "^5.12.0",
+    "lucide-vue-next": "^1.0.0",
+    "vue": "^3.5.41",
+    "vue-router": "^5.2.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^24.0.0",
+    "@vitejs/plugin-vue": "^6.0.8",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.12",
+    "typescript": "^5.9.0",
+    "vite": "^8.2.1",
+    "vitest": "^4.1.10",
+    "vue-tsc": "^3.3.10"
+  }
 }

@@ -10,6 +10,7 @@ import { AgentError } from "./agents.js";
 import { registerAuth } from "./auth.js";
 import { registerLiveWs } from "./live.js";
 import { registerRoutes } from "./routes.js";
+import { serverStore } from "./serverStore.js";
 export async function buildApp(opts) {
     const app = Fastify({ logger: true });
     await app.register(cookie);
@@ -51,8 +52,8 @@ export async function buildApp(opts) {
         return reply.code(500).send({ error: { code: "INTERNAL", message: "internal error" } });
     });
     await registerAuth(app, { user: opts.user, password: opts.password });
-    await registerRoutes(app, opts.servers);
-    registerLiveWs(app, opts.servers);
+    await registerRoutes(app);
+    registerLiveWs(app);
     // Static web (kalau sudah di-build) + SPA fallback
     const here = import.meta.dirname;
     const webRoot = [resolve(here, "../dist"), resolve(here, "../../dist")].find((p) => existsSync(resolve(p, "index.html")));

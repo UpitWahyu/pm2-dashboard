@@ -6,11 +6,11 @@ import websocket from "@fastify/websocket";
 import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import type { ServerConfig } from "./agents.js";
 import { AgentError } from "./agents.js";
 import { registerAuth } from "./auth.js";
 import { registerLiveWs } from "./live.js";
 import { registerRoutes } from "./routes.js";
+import { serverStore } from "./serverStore.js";
 
 export interface DashboardOptions {
   port: number;
@@ -18,7 +18,6 @@ export interface DashboardOptions {
   sessionSecret: string;
   user: string;
   password: string;
-  servers: ServerConfig[];
 }
 
 export async function buildApp(opts: DashboardOptions): Promise<FastifyInstance> {
@@ -64,8 +63,8 @@ export async function buildApp(opts: DashboardOptions): Promise<FastifyInstance>
   });
 
   await registerAuth(app, { user: opts.user, password: opts.password });
-  await registerRoutes(app, opts.servers);
-  registerLiveWs(app, opts.servers);
+  await registerRoutes(app);
+  registerLiveWs(app);
 
   // Static web (kalau sudah di-build) + SPA fallback
   const here = import.meta.dirname;

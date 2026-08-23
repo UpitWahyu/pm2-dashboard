@@ -1,3 +1,4 @@
+import { serverStore } from "./serverStore.js";
 const OPEN = 1;
 function toText(data) {
     if (typeof data === "string")
@@ -11,10 +12,11 @@ function toText(data) {
     return String(data);
 }
 // Proxy WS: browser → dashboard (cookie auth) → agent (first-message auth token)
-export function registerLiveWs(app, servers) {
+export function registerLiveWs(app) {
     app.get("/ws/live", { websocket: true }, (socket, req) => {
         const name = (req.query.server ?? "").trim();
-        const cfg = servers.find((s) => s.name === name);
+        // baca dari store (hot-reload): server yang baru ditambah langsung aktif
+        const cfg = serverStore.findByName(name);
         if (!cfg) {
             socket.close(4404, "SERVER_NOT_FOUND");
             return;

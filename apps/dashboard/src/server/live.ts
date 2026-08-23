@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import type { ServerConfig } from "./agents.js";
+import { serverStore } from "./serverStore.js";
 
 interface WsSocket {
   readyState: number;
@@ -32,10 +32,11 @@ function toText(data: unknown): string {
 }
 
 // Proxy WS: browser → dashboard (cookie auth) → agent (first-message auth token)
-export function registerLiveWs(app: FastifyInstance, servers: ServerConfig[]): void {
+export function registerLiveWs(app: FastifyInstance): void {
   app.get("/ws/live", { websocket: true }, (socket: WsSocket, req) => {
     const name = ((req.query as { server?: string }).server ?? "").trim();
-    const cfg = servers.find((s) => s.name === name);
+    // baca dari store (hot-reload): server yang baru ditambah langsung aktif
+    const cfg = serverStore.findByName(name);
     if (!cfg) {
       socket.close(4404, "SERVER_NOT_FOUND");
       return;

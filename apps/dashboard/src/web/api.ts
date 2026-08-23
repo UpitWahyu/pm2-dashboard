@@ -45,7 +45,40 @@ export const api = {
     request<LogTailResult>(
       `/api/servers/${encodeURIComponent(serverName)}/processes/${encodeURIComponent(String(id))}/logs?lines=${lines}&stream=${stream}`,
     ),
+  // --- Server management ---
+  manageServers: () => request<{ servers: ManagedServer[] }>("/api/servers/list"),
+  createServer: (input: ServerCreateInput) =>
+    request<{ server: ManagedServer }>("/api/servers", { method: "POST", body: JSON.stringify(input) }),
+  updateServer: (id: number, patch: ServerPatchInput) =>
+    request<{ server: ManagedServer }>(`/api/servers/${id}`, { method: "PUT", body: JSON.stringify(patch) }),
+  deleteServer: (id: number) => request<{ ok: true }>(`/api/servers/${id}`, { method: "DELETE" }),
+  syncServers: () => request<{ ok: true; syncedServers: string[]; syncedSecrets: string[] }>("/api/servers/sync", { method: "POST", body: "{}" }),
+  syncStatus: () => request<{ dbAvailable: boolean; envServers: number; dbServers: number }>("/api/servers/sync/status"),
 };
+
+export interface ManagedServer {
+  id: number;
+  name: string;
+  url: string;
+  port: number | null;
+  token: string;
+  enabled: boolean;
+}
+
+export interface ServerCreateInput {
+  name: string;
+  url: string;
+  port?: number | null;
+  token: string;
+}
+
+export interface ServerPatchInput {
+  name?: string;
+  url?: string;
+  port?: number | null;
+  token?: string;
+  enabled?: boolean;
+}
 
 export function liveWsUrl(serverName: string): string {
   const proto = window.location.protocol === "https:" ? "wss" : "ws";

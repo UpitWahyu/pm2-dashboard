@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRouter } from "vue-router";
-import { Activity, LogOut, RefreshCw, Server } from "lucide-vue-next";
+import { Activity, LogOut, RefreshCw, Server, ServerCog } from "lucide-vue-next";
 import type { ServerSummary } from "@pm2-dashboard/shared";
 import { api } from "../api.js";
 import { formatBytes } from "../format.js";
@@ -56,6 +56,15 @@ onUnmounted(() => {
         <p class="mt-0.5 text-xs text-neutral-500">{{ servers.length }} server · {{ totalOnline }} online</p>
       </div>
       <div class="flex items-center gap-2">
+        <button
+          type="button"
+          class="flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-sm text-neutral-400 hover:bg-white/5"
+          title="Kelola server"
+          @click="router.push('/servers/manage')"
+        >
+          <ServerCog :size="15" />
+          Kelola
+        </button>
         <button
           type="button"
           class="rounded-xl border border-white/10 p-2 text-neutral-400 hover:bg-white/5"

@@ -1,5 +1,6 @@
 import { config as loadEnv } from "dotenv";
 import { resolve } from "node:path";
+import * as db from "./database.js";
 // .env dicari di beberapa lokasi agar tahan terhadap cwd & src/dist (sama seperti agent)
 const here = import.meta.dirname;
 for (const candidate of [resolve(here, ".env"), resolve(here, "../.env"), resolve(here, "../../../.env")]) {
@@ -7,39 +8,115 @@ for (const candidate of [resolve(here, ".env"), resolve(here, "../.env"), resolv
 }
 function required(name, minLen) {
     const value = process.env[name] ?? "";
-    if (value.length < minLen) {
-        throw new Error(`[config] ${name} wajib diisi (min ${minLen} karakter) — cek apps/dashboard/.env`);
-    }
+    if (value.length < minLen)
+        return null;
     return value;
 }
-export function loadConfig() {
+function optional(name) {
+    const value = process.env[name] ?? "";
+    return value.length > 0 ? value : null;
+}
+function serverRowToConfig(r) {
+    return {
+        id: r.id,
+        name: r.name,
+        url: r.url.replace(/\/+$/, ""),
+        port: r.port,
+        token: r.token,
+        enabled: r.enabled,
+    };
+}
+/** Parse DASHBOARD_SERVERS dari .env (fallback jika DB kosong/tidak tersedia). */
+function parseEnvServers() {
+    const raw = process.env["DASHBOARD_SERVERS"];
+    if (!raw)
+        return [];
+    try {
+        const arr = JSON.parse(raw);
+        if (!Array.isArray(arr))
+            return [];
+        return arr.map((s) => {
+            const item = s;
+            return {
+                id: -1,
+                name: item.name ?? "",
+                url: (item.url ?? "").replace(/\/+$/, ""),
+                port: item.port ?? null,
+                token: item.token ?? "",
+                enabled: true,
+            };
+        });
+    }
+    catch {
+        return [];
+    }
+}
+/**
+ * Muat config. Secret (SESSION_SECRET, DASHBOARD_PASSWORD) dibaca dari DB dulu,
+ * fallback ke .env. Daftar server dibaca dari DB (hanya yang enabled) dan
+ * digabung dengan server dari .env yang belum ada di DB (agar .env tetap jadi
+ * fallback saat DB down).
+ */
+export async function loadConfig() {
     const port = Number(process.env["PORT"] ?? 4100);
     if (!Number.isInteger(port) || port <= 0 || port > 65535) {
         throw new Error("[config] PORT tidak valid");
     }
-    let servers;
-    try {
-        const raw = JSON.parse(required("DASHBOARD_SERVERS", 2));
-        if (!Array.isArray(raw) || raw.length === 0)
-            throw new Error("kosong");
-        servers = raw.map((s) => {
-            const item = s;
-            if (typeof item.name !== "string" || typeof item.url !== "string" || typeof item.token !== "string" || item.token.length < 16) {
-                throw new Error("format salah");
-            }
-            return { name: item.name, url: item.url.replace(/\/+$/, ""), token: item.token };
-        });
+    const sessionSecret = required("SESSION_SECRET", 16);
+    const user = optional("DASHBOARD_USER") ?? "admin";
+    const password = required("DASHBOARD_PASSWORD", 6);
+    if (!sessionSecret) {
+        throw new Error("[config] SESSION_SECRET wajib diisi (min 16 karakter) — cek apps/dashboard/.env");
     }
-    catch {
-        throw new Error("[config] DASHBOARD_SERVERS tidak valid — JSON array [{name,url,token}] dengan token min 16 karakter");
+    if (!password) {
+        throw new Error("[config] DASHBOARD_PASSWORD wajib diisi (min 6 karakter) — cek apps/dashboard/.env");
     }
     return {
         port,
         host: process.env["HOST"] ?? "127.0.0.1",
-        sessionSecret: required("SESSION_SECRET", 16),
-        user: required("DASHBOARD_USER", 1),
-        password: required("DASHBOARD_PASSWORD", 6),
-        servers,
+        sessionSecret,
+        user,
+        password,
+        dbAvailable: false,
     };
 }
+/**
+ * Ambil secret dari DB, fallback ke .env jika DB tidak tersedia.
+ * Mengembalikan secret final + flag dbAvailable.
+ */
+export async function resolveSecrets(base) {
+    let dbOk = false;
+    if (await db.dbAvailable()) {
+        try {
+            const rows = await db.getSecrets(["SESSION_SECRET", "DASHBOARD_PASSWORD", "DASHBOARD_USER"]);
+            dbOk = true;
+            const sessionSecret = rows["SESSION_SECRET"] ?? base.sessionSecret;
+            const password = rows["DASHBOARD_PASSWORD"] ?? base.password;
+            const user = rows["DASHBOARD_USER"] ?? base.user;
+            return { sessionSecret, password, user, dbAvailable: true };
+        }
+        catch (err) {
+            console.error(`[config] gagal baca secret dari DB, pakai .env: ${err.message}`);
+        }
+    }
+    return { sessionSecret: base.sessionSecret, password: base.password, user: base.user, dbAvailable: false };
+}
+/** Baca daftar server aktif dari DB; jika DB down, pakai .env. */
+export async function loadActiveServers() {
+    if (await db.dbAvailable()) {
+        try {
+            const rows = await db.listServers(true);
+            if (rows.length > 0) {
+                return { servers: rows.map(serverRowToConfig), dbAvailable: true };
+            }
+        }
+        catch (err) {
+            console.error(`[config] gagal baca server dari DB, pakai .env: ${err.message}`);
+        }
+    }
+    // Fallback: .env (filter nama kosong/token kosong)
+    const envServers = parseEnvServers().filter((s) => s.name && s.token.length >= 16);
+    return { servers: envServers, dbAvailable: false };
+}
+export { serverRowToConfig, parseEnvServers };
 //# sourceMappingURL=config.js.map

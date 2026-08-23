@@ -1,0 +1,64 @@
+# docker-compose untuk PM2 Dashboard + PostgreSQL
+#
+# Menjalankan:
+#   docker compose up -d
+#
+# Env yang dipakai dashboard (apps/dashboard/.env) — tambahkan:
+#   DATABASE_URL=postgres://pm2dash:pm2dash@db:5432/pm2dash
+#
+# Atau tanpa DATABASE_URL, pakai var terpisah:
+#   PGHOST=db  PGPORT=5432  PGUSER=pm2dash  PGPASSWORD=pm2dash  PGDATABASE=pm2dash
+#
+# Volume 'pgdata' menyimpan data secara persisten. Network 'pm2net' menghubungkan
+# dashboard ↔ postgres.
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: pm2dash-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${PGUSER:-pm2dash}
+      POSTGRES_PASSWORD: ${PGPASSWORD:-pm2dash}
+      POSTGRES_DB: ${PGDATABASE:-pm2dash}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # expos ke host hanya saat butuh akses langsung (mis. psql dari luar).
+    # default tertutup; dashboard terhubung lewat network internal 'pm2net'.
+    ports:
+      - "127.0.0.1:5432:5432"
+    networks:
+      - pm2net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PGUSER:-pm2dash} -d ${PGDATABASE:-pm2dash}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # (Opsional) jalankan dashboard di container juga. Lepas komentar bila mau.
+  # Biarkan mati bila dashboard dijalankan via PM2 di host (default repo ini).
+  # dashboard:
+  #   build:
+  #     context: .
+  #     dockerfile: deploy/Dockerfile.dashboard
+  #   container_name: pm2dash-app
+  #   restart: unless-stopped
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+  #   environment:
+  #     DATABASE_URL: postgres://pm2dash:pm2dash@db:5432/pm2dash
+  #     PORT: 4100
+  #     HOST: 0.0.0.0
+  #   ports:
+  #     - "127.0.0.1:4100:4100"
+  #   networks:
+  #     - pm2net
+
+volumes:
+  pgdata:
+    driver: local
+
+networks:
+  pm2net:
+    driver: bridge

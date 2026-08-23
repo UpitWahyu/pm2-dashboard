@@ -1,6 +1,6 @@
 import { open, stat } from "node:fs/promises";
 import pm2 from "pm2";
-import type { LogStream, LogTailResult, ProcessDetail, ProcessSummary } from "@pm2-dashboard/shared";
+import type { LogLine, LogStream, LogTailResult, ProcessDetail, ProcessSummary } from "@pm2-dashboard/shared";
 
 interface Pm2Proc {
   name?: string;
@@ -138,12 +138,56 @@ export async function tailFile(path: string | null, lines: number): Promise<stri
   }
 }
 
+// PM2 menulis: `YYYY-MM-DDTHH:mm:ss: <isi baris>` (21 char offset: 19 ts + ": ")
+const TS_RE = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}):/;
+
+// Parse isi file log jadi LogLine[] terurut (asc). Baris tanpa timestamp
+// (continuation line) di-attach ke baris sebelumnya; baris pertama tanpa
+// timestamp tetap di-include dengan timestamp kosong.
+function parseLogLines(text: string, stream: "out" | "err"): LogLine[] {
+  const out: LogLine[] = [];
+  const rawLines = text.split("\n");
+  for (const raw of rawLines) {
+    if (raw.length === 0) continue;
+    const m = TS_RE.exec(raw);
+    if (m) {
+      out.push({ stream, timestamp: m[1] ?? "", line: raw.slice(21) });
+    } else {
+      const last = out[out.length - 1];
+      if (last) {
+        // continuation line → gabung ke baris terakhir
+        last.line += "\n" + raw;
+      } else {
+        out.push({ stream, timestamp: "", line: raw });
+      }
+    }
+  }
+  return out;
+}
+
 export async function tailLogs(id: number | string, lines: number, stream: LogStream): Promise<LogTailResult> {
   const detail = await describeProcess(id);
   if (!detail) throw new ProcessNotFoundError(`process '${id}' tidak ditemukan`);
-  const [out, err] = await Promise.all([
-    stream !== "err" ? tailFile(detail.outLogPath, lines) : "",
-    stream !== "out" ? tailFile(detail.errLogPath, lines) : "",
+
+  if (stream === "out" || stream === "err") {
+    const text = await tailFile(stream === "out" ? detail.outLogPath : detail.errLogPath, lines);
+    const sliced = parseLogLines(text, stream).slice(-lines);
+    return { stream, lines: sliced, total: sliced.length };
+  }
+
+  // stream === "all": baca kedua file, merge berdasarkan timestamp, ambil N terakhir
+  const [outText, errText] = await Promise.all([
+    tailFile(detail.outLogPath, lines),
+    tailFile(detail.errLogPath, lines),
   ]);
-  return { stream, lines, out, err };
+  const merged = [...parseLogLines(outText, "out"), ...parseLogLines(errText, "err")];
+  // sort ascending berdasarkan timestamp; baris tanpa ts (timestamp=="") diakhir
+  merged.sort((a, b) => {
+    if (a.timestamp === b.timestamp) return 0;
+    if (a.timestamp === "") return 1;
+    if (b.timestamp === "") return -1;
+    return a.timestamp < b.timestamp ? -1 : 1;
+  });
+  const sliced = merged.slice(-lines);
+  return { stream: "all", lines: sliced, total: sliced.length };
 }

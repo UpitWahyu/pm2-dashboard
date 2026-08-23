@@ -135,21 +135,52 @@ describe("agent API", () => {
     expect(res.statusCode).toBe(404);
   });
 
-  it("logs?lines=2 → tail sesuai stream", async () => {
+  it("logs?lines=2&stream=out → tail sesuai stream (tanpa merge)", async () => {
     const dir = await mkdtemp(join(tmpdir(), "pm2dash-"));
     const outPath = join(dir, "out.log");
-    await writeFile(outPath, "line1\nline2\nline3\nline4\nline5\n");
+    await writeFile(outPath, "2026-08-23T07:55:01: line1\n2026-08-23T07:55:02: line2\n2026-08-23T07:55:03: line3\n2026-08-23T07:55:04: line4\n2026-08-23T07:55:05: line5\n");
     pm2Mock.describe.mockImplementation((_id: unknown, cb: (e: Error | null, list: unknown[]) => void) =>
       cb(null, [{ ...procOnline, pm2_env: { ...procOnline.pm2_env, pm_out_log_path: outPath, pm_err_log_path: null } }]),
     );
     const app = await makeApp();
     const res = await app.inject({
       method: "GET",
-      url: "/api/processes/0/logs?lines=2",
+      url: "/api/processes/0/logs?lines=2&stream=out",
       headers: { authorization: `Bearer ${TOKEN}` },
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toMatchObject({ stream: "all", lines: 2, out: "line4\nline5", err: "" });
+    const body = res.json() as { stream: string; total: number; lines: { stream: string; line: string; timestamp: string }[] };
+    expect(body.stream).toBe("out");
+    expect(body.total).toBe(2);
+    expect(body.lines.map((l) => l.line)).toEqual(["line4", "line5"]);
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("logs?stream=all → merge out+err berurutan by timestamp", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pm2dash-"));
+    const outPath = join(dir, "out.log");
+    const errPath = join(dir, "err.log");
+    // out: dua event; err: satu event di antara keduanya
+    await writeFile(
+      outPath,
+      "2026-08-23T07:55:04: out-first\n2026-08-23T07:55:06: out-second\n",
+    );
+    await writeFile(errPath, "2026-08-23T07:55:05: err-middle\n");
+    pm2Mock.describe.mockImplementation((_id: unknown, cb: (e: Error | null, list: unknown[]) => void) =>
+      cb(null, [{ ...procOnline, pm2_env: { ...procOnline.pm2_env, pm_out_log_path: outPath, pm_err_log_path: errPath } }]),
+    );
+    const app = await makeApp();
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/processes/0/logs?lines=100&stream=all",
+      headers: { authorization: `Bearer ${TOKEN}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { stream: string; total: number; lines: { stream: string; line: string; timestamp: string }[] };
+    expect(body.stream).toBe("all");
+    expect(body.lines.map((l) => l.line)).toEqual(["out-first", "err-middle", "out-second"]);
+    expect(body.lines.map((l) => l.stream)).toEqual(["out", "err", "out"]);
+    expect(body.total).toBe(3);
     await rm(dir, { recursive: true, force: true });
   });
 

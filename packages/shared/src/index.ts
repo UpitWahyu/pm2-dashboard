@@ -44,11 +44,16 @@ export interface ServerSummary {
 
 export type LogStream = "all" | "out" | "err";
 
+export interface LogLine {
+  stream: "out" | "err";
+  line: string; // isi baris TANPA timestamp (sudah dipisah)
+  timestamp: string; // YYYY-MM-DDTHH:mm:ss (kosong jika tak terdeteksi)
+}
+
 export interface LogTailResult {
   stream: LogStream;
-  lines: number;
-  out: string;
-  err: string;
+  lines: LogLine[]; // "all": merged & sorted; "out"/"err": hanya stream tsb
+  total: number;
 }
 
 export type LiveMessage =

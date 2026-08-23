@@ -1,6 +1,6 @@
 # PM2 Dashboard — Implementation Plan
 
-> **Status:** Fase 0–3 selesai. Agent (list, kontrol, logs tail, WS live) + Dashboard (login, servers, detail, aksi, log viewer live) — terverifikasi nyata end-to-end di VPS via browser. Fase 4–5 (hardening & deploy via PM2/NPM) menyusul.
+> **Status:** Fase 0–5 SELESAI ✅. Agent (REST+WS+logs+kontrol) + Dashboard (login+servers+detail+aksi+log-live) deployed via PM2 + Cloudflare+NPM. Publik: https://pm2.netw.my.id
 
 **Goal:** Dashboard web untuk mengontrol app PM2 langsung dari browser, termasuk app PM2 di VPS lain — mulai/stop/restart/delete, lihat status & log real-time, semua dari satu tampilan.
 

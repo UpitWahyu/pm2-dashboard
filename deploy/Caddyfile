@@ -1,0 +1,47 @@
+# Caddyfile — Reverse proxy untuk service VPS 104.208.100.251
+# Port service diubah ke range 41xxx (lebih aman dari scan port default)
+# Dibuat: 2026-08-17 | TLS via DNS-01 challenge (Cloudflare, karena domain di belakang proxy CF)
+
+{
+    acme_dns cloudflare {$CLOUDFLARE_API_TOKEN}
+}
+
+trdi0.netw.my.id {
+    reverse_proxy localhost:41000
+}
+
+cctr0.netw.my.id {
+    reverse_proxy localhost:41001
+}
+
+blhr0.netw.my.id {
+    reverse_proxy localhost:41002
+}
+
+bkhj0.netw.my.id {
+    reverse_proxy localhost:41003
+}
+
+termix.netw.my.id {
+    reverse_proxy localhost:41004
+}
+
+sla.netw.my.id {
+    reverse_proxy localhost:41010
+}
+
+music.netw.my.id {
+    reverse_proxy localhost:41018
+}
+
+livechat.netw.my.id {
+    reverse_proxy localhost:41020
+}
+
+chat.netw.my.id {
+    reverse_proxy localhost:41020
+}
+
+pm2.netw.my.id {
+    reverse_proxy localhost:3005
+}

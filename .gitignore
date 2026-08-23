@@ -23,3 +23,9 @@ pm2-*.log
 # test & coverage
 coverage/
 .vite/
+
+# Infrastructure configs (sensitive, keep outside repo)
+deploy/
+*.env
+docker-compose.yml
+.env.*

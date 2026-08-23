@@ -1,3 +1,4 @@
+import rateLimit from "@fastify/rate-limit";
 import websocket from "@fastify/websocket";
 import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
 import { extractBearer, isValidToken } from "./auth.js";
@@ -15,6 +16,7 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   const app = Fastify({ logger: true });
 
   await app.register(websocket);
+  await app.register(rateLimit, { max: 300, timeWindow: "1 minute" });
 
   // POST JSON kosong → {} (hindari FST_ERR_CTP_EMPTY_JSON_BODY)
   app.addContentTypeParser("application/json", { parseAs: "string" }, (_req, body, done) => {

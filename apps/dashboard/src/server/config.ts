@@ -15,6 +15,7 @@ export interface ServerConfig {
 
 export interface DashboardConfig {
   port: number;
+  host: string;
   sessionSecret: string;
   user: string;
   password: string;
@@ -52,6 +53,7 @@ export function loadConfig(): DashboardConfig {
 
   return {
     port,
+    host: process.env["HOST"] ?? "127.0.0.1",
     sessionSecret: required("SESSION_SECRET", 16),
     user: required("DASHBOARD_USER", 1),
     password: required("DASHBOARD_PASSWORD", 6),

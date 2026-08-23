@@ -50,17 +50,22 @@ export async function registerRoutes(app: FastifyInstance, ctx: RouteContext): P
     ["delete", "delete"],
   ];
   for (const [path, action] of actions) {
-    app.post(`/api/processes/:id/${path}`, async (req, reply) => {
-      try {
-        const process = await runAction(action, parseId(paramsId(req)));
-        return { ok: true, action, process };
-      } catch (err) {
-        if (err instanceof ProcessNotFoundError) {
-          return notFound(reply, err.message);
+    // aksi mutasi dibatasi lebih ketat (anti spam restart/delete)
+    app.post(
+      `/api/processes/:id/${path}`,
+      { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } },
+      async (req, reply) => {
+        try {
+          const process = await runAction(action, parseId(paramsId(req)));
+          return { ok: true, action, process };
+        } catch (err) {
+          if (err instanceof ProcessNotFoundError) {
+            return notFound(reply, err.message);
+          }
+          throw err;
         }
-        throw err;
-      }
-    });
+      },
+    );
   }
 
   app.get("/api/processes/:id/logs", async (req, reply) => {

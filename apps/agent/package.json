@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@fastify/rate-limit": "^11.2.0",
     "@fastify/websocket": "^11.3.0",
     "@pm2-dashboard/shared": "workspace:*",
     "dotenv": "^17.4.2",

@@ -5,6 +5,7 @@ export interface ServerConfig {
 }
 export interface DashboardConfig {
     port: number;
+    host: string;
     sessionSecret: string;
     user: string;
     password: string;

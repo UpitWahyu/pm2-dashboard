@@ -5,7 +5,8 @@ function safeEqual(a, b) {
     return ba.length === bb.length && timingSafeEqual(ba, bb);
 }
 export async function registerAuth(app, opts) {
-    app.post("/api/auth/login", async (req, reply) => {
+    // login dibatasi ketat (anti brute force)
+    app.post("/api/auth/login", { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } }, async (req, reply) => {
         const body = (req.body ?? {});
         const username = typeof body.username === "string" ? body.username : "";
         const password = typeof body.password === "string" ? body.password : "";

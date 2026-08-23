@@ -3,8 +3,8 @@ import { loadConfig } from "./config.js";
 const config = loadConfig();
 const app = await buildApp(config);
 try {
-    await app.listen({ port: config.port, host: "127.0.0.1" });
-    console.log(`[dashboard] listening → http://127.0.0.1:${config.port}`);
+    await app.listen({ port: config.port, host: config.host });
+    console.log(`[dashboard] listening → http://${config.host}:${config.port}`);
 }
 catch (err) {
     console.error(`[dashboard] gagal listen: ${err.message}`);

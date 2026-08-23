@@ -1,5 +1,6 @@
 import cookie from "@fastify/cookie";
 import jwt from "@fastify/jwt";
+import rateLimit from "@fastify/rate-limit";
 import fastifyStatic from "@fastify/static";
 import websocket from "@fastify/websocket";
 import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
@@ -13,6 +14,7 @@ import { registerRoutes } from "./routes.js";
 
 export interface DashboardOptions {
   port: number;
+  host: string;
   sessionSecret: string;
   user: string;
   password: string;
@@ -25,6 +27,7 @@ export async function buildApp(opts: DashboardOptions): Promise<FastifyInstance>
   await app.register(cookie);
   await app.register(jwt, { secret: opts.sessionSecret, cookie: { cookieName: "pm2dash", signed: false } });
   await app.register(websocket);
+  await app.register(rateLimit, { max: 300, timeWindow: "1 minute" });
 
   // POST JSON kosong → {} (hindari FST_ERR_CTP_EMPTY_JSON_BODY)
   app.addContentTypeParser("application/json", { parseAs: "string" }, (_req, body, done) => {

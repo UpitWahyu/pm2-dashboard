@@ -196,12 +196,14 @@ describe("agent API", () => {
 });
 
 describe("tailFile", () => {
-  it("ambil N baris terakhir; file tidak ada → ''", async () => {
+  it("ambil N baris terakhir; file tidak ada → text kosong", async () => {
     const dir = await mkdtemp(join(tmpdir(), "pm2dash-tail-"));
     const p = join(dir, "x.log");
     await writeFile(p, "a\nb\nc\nd\ne\n");
-    expect(await tailFile(p, 2)).toBe("d\ne");
-    expect(await tailFile(join(dir, "missing.log"), 5)).toBe("");
+    const hit = await tailFile(p, 2);
+    expect(hit.text).toBe("d\ne");
+    expect(hit.mtimeMs).toBeGreaterThan(0);
+    expect(await tailFile(join(dir, "missing.log"), 5)).toEqual({ text: "", mtimeMs: 0 });
     await rm(dir, { recursive: true, force: true });
   });
 });

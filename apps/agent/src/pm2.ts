@@ -117,11 +117,18 @@ export function runAction(action: Pm2Action, id: number | string): Promise<Proce
   });
 }
 
-export async function tailFile(path: string | null, lines: number): Promise<string> {
-  if (!path) return "";
+export interface TailFileResult {
+  text: string;
+  mtimeMs: number;
+}
+
+export async function tailFile(path: string | null, lines: number): Promise<TailFileResult> {
+  if (!path) return { text: "", mtimeMs: 0 };
   try {
-    const size = (await stat(path)).size;
-    if (size === 0) return "";
+    const info = await stat(path);
+    const size = info.size;
+    const mtimeMs = info.mtimeMs;
+    if (size === 0) return { text: "", mtimeMs };
     const chunk = Math.min(size, MAX_READ_BYTES);
     const fd = await open(path, "r");
     try {
@@ -129,36 +136,49 @@ export async function tailFile(path: string | null, lines: number): Promise<stri
       await fd.read(buffer, 0, chunk, size - chunk);
       const parts = buffer.toString("utf8").split("\n");
       if (parts.at(-1) === "") parts.pop(); // trailing newline → buang elemen kosong
-      return parts.slice(-lines).join("\n");
+      return { text: parts.slice(-lines).join("\n"), mtimeMs };
     } finally {
       await fd.close();
     }
   } catch {
-    return ""; // file belum ada / sedang rotate
+    return { text: "", mtimeMs: 0 }; // file belum ada / sedang rotate
   }
 }
 
-// PM2 menulis: `YYYY-MM-DDTHH:mm:ss: <isi baris>` (21 char offset: 19 ts + ": ")
-const TS_RE = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}):/;
+// Prefix timestamp ISO: YYYY-MM-DDTHH:mm(:ss(.SSS)?)? opsional Z / ±HH:MM, diakhiri ": ".
+// Contoh match: `2026-09-20T10:11:12: `, `...T10:11:12.345Z: `, `...T10:11:12.345+07:00: `.
+export const TS_RE = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})?): /;
 
-// Parse isi file log jadi LogLine[] terurut (asc). Baris tanpa timestamp
-// (continuation line) di-attach ke baris sebelumnya; baris pertama tanpa
-// timestamp tetap di-include dengan timestamp kosong.
-function parseLogLines(text: string, stream: "out" | "err"): LogLine[] {
+// Epoch untuk sorting; format campuran (tanpa ms / dgn Z / offset) tak bisa
+// dibandingkan sebagai string mentah.
+function epochOf(ts: string): number {
+  const n = Date.parse(ts);
+  return Number.isNaN(n) ? 0 : n;
+}
+
+function estimatedTimestamp(mtimeMs: number): string {
+  // ISO lokal (UTC) dipotong ke detik; dipakai untuk baris tanpa prefix.
+  return new Date(mtimeMs).toISOString().slice(0, 19);
+}
+
+// Parse isi file log jadi LogLine[]. Baris tanpa timestamp → timestamp perkiraan
+// dari mtime file + flag `estimated`. Continuation line di-attach ke baris
+// sebelumnya (mewarisi timestamp & flag induk).
+export function parseLogLines(text: string, stream: "out" | "err", mtimeMs = 0): LogLine[] {
   const out: LogLine[] = [];
-  const rawLines = text.split("\n");
-  for (const raw of rawLines) {
+  const fallback = estimatedTimestamp(mtimeMs);
+  for (const raw of text.split("\n")) {
     if (raw.length === 0) continue;
     const m = TS_RE.exec(raw);
     if (m) {
-      out.push({ stream, timestamp: m[1] ?? "", line: raw.slice(21) });
+      out.push({ stream, timestamp: m[1] ?? "", line: raw.slice(m[0].length), estimated: false });
     } else {
       const last = out[out.length - 1];
       if (last) {
-        // continuation line → gabung ke baris terakhir
+        // continuation line → gabung ke baris terakhir, ikut ts + estimated induk
         last.line += "\n" + raw;
       } else {
-        out.push({ stream, timestamp: "", line: raw });
+        out.push({ stream, timestamp: fallback, line: raw, estimated: true });
       }
     }
   }
@@ -170,24 +190,22 @@ export async function tailLogs(id: number | string, lines: number, stream: LogSt
   if (!detail) throw new ProcessNotFoundError(`process '${id}' tidak ditemukan`);
 
   if (stream === "out" || stream === "err") {
-    const text = await tailFile(stream === "out" ? detail.outLogPath : detail.errLogPath, lines);
-    const sliced = parseLogLines(text, stream).slice(-lines);
+    const { text, mtimeMs } = await tailFile(stream === "out" ? detail.outLogPath : detail.errLogPath, lines);
+    const sliced = parseLogLines(text, stream, mtimeMs).slice(-lines);
     return { stream, lines: sliced, total: sliced.length };
   }
 
-  // stream === "all": baca kedua file, merge berdasarkan timestamp, ambil N terakhir
-  const [outText, errText] = await Promise.all([
+  // stream === "all": baca kedua file, merge lalu sort asc berdasarkan epoch
+  const [outFile, errFile] = await Promise.all([
     tailFile(detail.outLogPath, lines),
     tailFile(detail.errLogPath, lines),
   ]);
-  const merged = [...parseLogLines(outText, "out"), ...parseLogLines(errText, "err")];
-  // sort ascending berdasarkan timestamp; baris tanpa ts (timestamp=="") diakhir
-  merged.sort((a, b) => {
-    if (a.timestamp === b.timestamp) return 0;
-    if (a.timestamp === "") return 1;
-    if (b.timestamp === "") return -1;
-    return a.timestamp < b.timestamp ? -1 : 1;
-  });
+  const merged = [
+    ...parseLogLines(outFile.text, "out", outFile.mtimeMs),
+    ...parseLogLines(errFile.text, "err", errFile.mtimeMs),
+  ];
+  // estimated (mtime) ikut terurut sesuai nilai waktunya, bukan selalu di akhir
+  merged.sort((a, b) => epochOf(a.timestamp) - epochOf(b.timestamp));
   const sliced = merged.slice(-lines);
   return { stream: "all", lines: sliced, total: sliced.length };
 }

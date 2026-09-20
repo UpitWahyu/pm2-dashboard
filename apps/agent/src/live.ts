@@ -3,6 +3,7 @@ import "@fastify/websocket"; // module augmentation: RouteShorthandOptions.webso
 import pm2 from "pm2";
 import { WsAuthMessageSchema, type LiveMessage } from "@pm2-dashboard/shared";
 import { isValidToken } from "./auth.js";
+import { TS_RE } from "./pm2.js";
 
 // types PM2 tidak menyertakan launchBus — cast minimal (PM2 7: connectBus diganti launchBus)
 const pm2Bus = pm2 as unknown as {
@@ -29,6 +30,23 @@ function toText(data: unknown): string {
   return String(data);
 }
 
+function buildLogMessage(stream: "out" | "err", ev: any): LiveMessage {
+  const raw = String(ev.data ?? "");
+  const m = TS_RE.exec(raw);
+  return {
+    type: "log",
+    data: {
+      stream,
+      name: String(ev.process?.name ?? "?"),
+      pm_id: Number(ev.process?.pm_id ?? -1),
+      // prefix timestamp sudah dipisah dari isi baris (konsisten dgn tail)
+      line: m ? raw.slice(m[0].length) : raw,
+      timestamp: m ? (m[1] ?? "") : new Date().toISOString().slice(0, 19),
+      estimated: !m,
+    },
+  };
+}
+
 export class LiveHub {
   private readonly clients = new Set<WsSocket>();
   private started = false;
@@ -49,18 +67,8 @@ export class LiveHub {
         console.error(`[live] gagal connectBus: ${err.message}`);
         return;
       }
-      bus.on("log:out", (ev: any) =>
-        this.broadcast({
-          type: "log",
-          data: { stream: "out", name: String(ev.process?.name ?? "?"), pm_id: Number(ev.process?.pm_id ?? -1), line: String(ev.data ?? "") },
-        }),
-      );
-      bus.on("log:err", (ev: any) =>
-        this.broadcast({
-          type: "log",
-          data: { stream: "err", name: String(ev.process?.name ?? "?"), pm_id: Number(ev.process?.pm_id ?? -1), line: String(ev.data ?? "") },
-        }),
-      );
+      bus.on("log:out", (ev: any) => this.broadcast(buildLogMessage("out", ev)));
+      bus.on("log:err", (ev: any) => this.broadcast(buildLogMessage("err", ev)));
       bus.on("process:event", (ev: any) =>
         this.broadcast({
           type: "process:event",

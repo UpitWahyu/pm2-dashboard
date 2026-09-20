@@ -47,7 +47,8 @@ export type LogStream = "all" | "out" | "err";
 export interface LogLine {
   stream: "out" | "err";
   line: string; // isi baris TANPA timestamp (sudah dipisah)
-  timestamp: string; // YYYY-MM-DDTHH:mm:ss (kosong jika tak terdeteksi)
+  timestamp: string; // ISO lokal; selalu terisi (fallback dari mtime file)
+  estimated?: boolean; // true bila timestamp bukan dari prefix log (perkiraan)
 }
 
 export interface LogTailResult {
@@ -58,7 +59,17 @@ export interface LogTailResult {
 
 export type LiveMessage =
   | { type: "auth:ok" }
-  | { type: "log"; data: { stream: "out" | "err"; name: string; pm_id: number; line: string } }
+  | {
+      type: "log";
+      data: {
+        stream: "out" | "err";
+        name: string;
+        pm_id: number;
+        line: string;
+        timestamp?: string;
+        estimated?: boolean;
+      };
+    }
   | { type: "process:event"; data: { event: string; name: string; pm_id: number; status?: string } };
 
 // ---------- Zod schemas ----------

@@ -6,10 +6,22 @@ import { api, liveWsUrl } from "../api.js";
 const props = defineProps<{ serverName: string; procName: string; pmId: number }>();
 const emit = defineEmits<{ close: [] }>();
 
-type LogLine = { stream: "out" | "err"; line: string; timestamp: string };
+type LogLine = { stream: "out" | "err"; line: string; timestamp: string; estimated?: boolean };
 type Tab = "all" | "out" | "err";
 
 const MAX_LINES = 2000;
+
+// Format tampilan: `T` → spasi; sembunyikan tanggal bila hari ini.
+function formatLogTime(ts: string): string {
+  if (!ts) return "—";
+  const m = /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}(?::\d{2})?)/.exec(ts.replace("T", " "));
+  if (!m) return ts;
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const date = m[1] ?? "";
+  const time = m[2] ?? "";
+  return date === today ? time : `${date} ${time}`;
+}
 
 const tab = ref<Tab>("all");
 const lines = ref<LogLine[]>([]);
@@ -50,6 +62,7 @@ async function loadTail(): Promise<void> {
       stream: l.stream,
       line: l.line,
       timestamp: l.timestamp ?? "",
+      estimated: l.estimated === true,
     }));
   } catch (e) {
     error.value = (e as Error).message;
@@ -59,9 +72,9 @@ async function loadTail(): Promise<void> {
   }
 }
 
-function appendLine(stream: "out" | "err", line: string, timestamp = ""): void {
+function appendLine(stream: "out" | "err", line: string, timestamp = "", estimated = false): void {
   const clean = line.replace(/\n$/, "");
-  lines.value = [...lines.value, { stream, line: clean, timestamp }].slice(-MAX_LINES);
+  lines.value = [...lines.value, { stream, line: clean, timestamp, estimated }].slice(-MAX_LINES);
   if (!paused.value) scrollToBottom();
 }
 
@@ -75,15 +88,21 @@ function connectLive(): void {
     try {
       const msg = JSON.parse(String(ev.data)) as {
         type?: string;
-        data?: { stream?: "out" | "err"; pm_id?: number; line?: string };
+        data?: {
+          stream?: "out" | "err";
+          pm_id?: number;
+          line?: string;
+          timestamp?: string;
+          estimated?: boolean;
+        };
       };
       if (msg.type === "log" && msg.data && msg.data.pm_id === props.pmId && msg.data.line !== undefined) {
         const stream = msg.data.stream === "err" ? "err" : "out";
         if (accepts(stream)) {
-          // Tarik timestamp dari isi baris (format PM2) bila ada, agar konsisten dgn tail.
-          const m = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}):/.exec(msg.data.line);
-          const ts = m ? m[1] : new Date().toISOString().slice(0, 19);
-          appendLine(stream, msg.data.line, ts);
+          // Agent sudah mengirim timestamp (dan flag estimated) — fallback untuk agent lama.
+          const ts = msg.data.timestamp || new Date().toISOString().slice(0, 19);
+          const estimated = msg.data.estimated ?? !msg.data.timestamp;
+          appendLine(stream, msg.data.line, ts, estimated);
         }
       }
     } catch {
@@ -177,7 +196,11 @@ onUnmounted(() => {
             :key="i"
             :class="l.stream === 'err' ? 'text-red-400' : 'text-neutral-300'"
           >
-            <span class="mr-1.5 select-none text-neutral-600">{{ l.timestamp || '—' }}</span>
+            <span
+              class="mr-1.5 select-none"
+              :class="l.estimated ? 'text-neutral-600/60' : 'text-neutral-600'"
+              :title="l.estimated ? 'waktu perkiraan (baris log tidak punya timestamp)' : undefined"
+            >{{ (l.estimated ? '~' : '') + formatLogTime(l.timestamp) }}</span>
             <span class="mr-1.5 select-none" :class="l.stream === 'err' ? 'text-red-500' : 'text-emerald-600'">[{{ l.stream }}]</span>{{ l.line }}
           </div>
           <div v-if="visibleLines.length === 0" class="text-neutral-600">belum ada log</div>

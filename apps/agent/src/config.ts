@@ -12,6 +12,7 @@ export interface AgentConfig {
   port: number;
   token: string;
   name: string;
+  host: string;
 }
 
 function required(name: string, minLen: number): string {
@@ -31,5 +32,6 @@ export function loadConfig(): AgentConfig {
     port,
     token: required("AGENT_TOKEN", 16),
     name: process.env["AGENT_NAME"] ?? "agent",
+    host: process.env["HOST"] ?? "127.0.0.1",
   };
 }

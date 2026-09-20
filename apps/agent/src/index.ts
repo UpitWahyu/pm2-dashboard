@@ -19,8 +19,8 @@ hub.start();
 const app = await buildApp({ token: config.token, name: config.name, version: "0.1.0", hub });
 
 try {
-  await app.listen({ port: config.port, host: "127.0.0.1" });
-  console.log(`[agent] '${config.name}' listening → http://127.0.0.1:${config.port}`);
+  await app.listen({ port: config.port, host: config.host });
+  console.log(`[agent] '${config.name}' listening → http://${config.host}:${config.port}`);
 } catch (err) {
   console.error(`[agent] gagal listen: ${(err as Error).message}`);
   process.exit(1);

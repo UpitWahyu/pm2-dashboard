@@ -45,6 +45,21 @@ export declare function updateServer(id: number, patch: Partial<{
     enabled: boolean;
 }>): Promise<ServerRow | null>;
 export declare function deleteServer(id: number): Promise<boolean>;
+export interface RefreshTokenRow {
+    id: number;
+    token_hash: string;
+    username: string;
+    created_at: Date;
+    last_used_at: Date | null;
+    expires_at: Date;
+    revoked_at: Date | null;
+}
+export declare function insertRefreshToken(tokenHash: string, username: string, expiresAt: Date): Promise<void>;
+export declare function findRefreshToken(tokenHash: string): Promise<RefreshTokenRow | null>;
+export declare function touchRefreshToken(tokenHash: string): Promise<void>;
+export declare function revokeRefreshToken(tokenHash: string): Promise<void>;
+export declare function revokeAllRefreshTokens(username: string): Promise<void>;
+export declare function deleteExpiredRefreshTokens(): Promise<number>;
 export interface DbDump {
     secrets: Array<{
         key: string;

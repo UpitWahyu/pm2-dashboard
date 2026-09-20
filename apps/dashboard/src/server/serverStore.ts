@@ -25,6 +25,12 @@ export class ServerStore {
     this.byName = new Map(list.map((s) => [s.name, s]));
   }
 
+  /** Seed store langsung (dipakai test / bootstrap tanpa DB). */
+  seed(list: ServerConfig[]): void {
+    this.setServers(list);
+    this.loaded = true;
+  }
+
   getServers(): ServerConfig[] {
     return this.servers;
   }

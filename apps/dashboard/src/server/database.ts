@@ -72,6 +72,18 @@ export async function ensureSchema(): Promise<void> {
     );
 
     CREATE INDEX IF NOT EXISTS idx_servers_enabled ON servers (enabled);
+
+    CREATE TABLE IF NOT EXISTS refresh_tokens (
+      id          SERIAL PRIMARY KEY,
+      token_hash  TEXT UNIQUE NOT NULL,
+      username    TEXT NOT NULL,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+      last_used_at TIMESTAMPTZ,
+      expires_at  TIMESTAMPTZ NOT NULL,
+      revoked_at  TIMESTAMPTZ
+    );
+
+    CREATE INDEX IF NOT EXISTS refresh_tokens_username_idx ON refresh_tokens (username);
   `);
 }
 
@@ -206,6 +218,57 @@ export async function updateServer(
 export async function deleteServer(id: number): Promise<boolean> {
   const res = await getPool().query("DELETE FROM servers WHERE id = $1", [id]);
   return (res.rowCount ?? 0) > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Refresh tokens CRUD (rotasi + revoke)
+// ---------------------------------------------------------------------------
+
+export interface RefreshTokenRow {
+  id: number;
+  token_hash: string;
+  username: string;
+  created_at: Date;
+  last_used_at: Date | null;
+  expires_at: Date;
+  revoked_at: Date | null;
+}
+
+export async function insertRefreshToken(tokenHash: string, username: string, expiresAt: Date): Promise<void> {
+  await getPool().query(
+    `INSERT INTO refresh_tokens (token_hash, username, expires_at)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (token_hash) DO NOTHING`,
+    [tokenHash, username, expiresAt],
+  );
+}
+
+export async function findRefreshToken(tokenHash: string): Promise<RefreshTokenRow | null> {
+  const res = await getPool().query("SELECT * FROM refresh_tokens WHERE token_hash = $1", [tokenHash]);
+  return (res.rows[0] as RefreshTokenRow | undefined) ?? null;
+}
+
+export async function touchRefreshToken(tokenHash: string): Promise<void> {
+  await getPool().query("UPDATE refresh_tokens SET last_used_at = now() WHERE token_hash = $1", [tokenHash]);
+}
+
+export async function revokeRefreshToken(tokenHash: string): Promise<void> {
+  await getPool().query(
+    "UPDATE refresh_tokens SET revoked_at = now() WHERE token_hash = $1 AND revoked_at IS NULL",
+    [tokenHash],
+  );
+}
+
+export async function revokeAllRefreshTokens(username: string): Promise<void> {
+  await getPool().query(
+    "UPDATE refresh_tokens SET revoked_at = now() WHERE username = $1 AND revoked_at IS NULL",
+    [username],
+  );
+}
+
+export async function deleteExpiredRefreshTokens(): Promise<number> {
+  const res = await getPool().query("DELETE FROM refresh_tokens WHERE expires_at < now()");
+  return res.rowCount ?? 0;
 }
 
 // ---------------------------------------------------------------------------

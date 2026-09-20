@@ -22,8 +22,20 @@ export interface DashboardConfig {
   port: number;
   host: string;
   sessionSecret: string;
+  refreshSecret: string;
+  accessTokenTtlMinutes: number;
+  refreshTokenTtlDays: number;
+  cookieSecure: boolean;
   user: string;
   password: string;
+  dbAvailable: boolean;
+}
+
+export interface ResolvedSecrets {
+  sessionSecret: string;
+  refreshSecret: string;
+  password: string;
+  user: string;
   dbAvailable: boolean;
 }
 
@@ -36,6 +48,32 @@ function required(name: string, minLen: number): string | null {
 function optional(name: string): string | null {
   const value = process.env[name] ?? "";
   return value.length > 0 ? value : null;
+}
+
+/** Env integer positif; fallback ke default kalau kosong/tidak valid. */
+function positiveInt(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const n = Number(raw);
+  if (Number.isFinite(n) && n > 0) return Math.floor(n);
+  console.warn(`[config] ${name} tidak valid — memakai default ${fallback}`);
+  return fallback;
+}
+
+/**
+ * Pilih secret refresh: minimal 32 karakter. Kalau kosong/terlalu pendek,
+ * fallback ke SESSION_SECRET sambil mencetak warning.
+ */
+function pickRefreshSecret(candidate: string | null | undefined, sessionSecret: string): string {
+  if (!candidate) {
+    console.warn("[config] REFRESH_SECRET tidak diset — memakai SESSION_SECRET");
+    return sessionSecret;
+  }
+  if (candidate.length < 32) {
+    console.warn("[config] REFRESH_SECRET kurang dari 32 karakter — memakai SESSION_SECRET");
+    return sessionSecret;
+  }
+  return candidate;
 }
 
 function serverRowToConfig(r: ServerRow): ServerConfig {
@@ -99,6 +137,10 @@ export async function loadConfig(): Promise<DashboardConfig> {
     port,
     host: process.env["HOST"] ?? "127.0.0.1",
     sessionSecret,
+    refreshSecret: optional("REFRESH_SECRET") ?? "",
+    accessTokenTtlMinutes: positiveInt("ACCESS_TOKEN_TTL_MINUTES", 15),
+    refreshTokenTtlDays: positiveInt("REFRESH_TOKEN_TTL_DAYS", 7),
+    cookieSecure: (process.env["COOKIE_SECURE"] ?? "").toLowerCase() === "true",
     user,
     password,
     dbAvailable: false,
@@ -109,23 +151,26 @@ export async function loadConfig(): Promise<DashboardConfig> {
  * Ambil secret dari DB, fallback ke .env jika DB tidak tersedia.
  * Mengembalikan secret final + flag dbAvailable.
  */
-export async function resolveSecrets(
-  base: DashboardConfig,
-): Promise<{ sessionSecret: string; password: string; user: string; dbAvailable: boolean }> {
-  let dbOk = false;
+export async function resolveSecrets(base: DashboardConfig): Promise<ResolvedSecrets> {
   if (await db.dbAvailable()) {
     try {
-      const rows = await db.getSecrets(["SESSION_SECRET", "DASHBOARD_PASSWORD", "DASHBOARD_USER"]);
-      dbOk = true;
+      const rows = await db.getSecrets(["SESSION_SECRET", "DASHBOARD_PASSWORD", "DASHBOARD_USER", "REFRESH_SECRET"]);
       const sessionSecret = rows["SESSION_SECRET"] ?? base.sessionSecret;
+      const refreshSecret = pickRefreshSecret(rows["REFRESH_SECRET"] ?? base.refreshSecret, sessionSecret);
       const password = rows["DASHBOARD_PASSWORD"] ?? base.password;
       const user = rows["DASHBOARD_USER"] ?? base.user;
-      return { sessionSecret, password, user, dbAvailable: true };
+      return { sessionSecret, refreshSecret, password, user, dbAvailable: true };
     } catch (err) {
       console.error(`[config] gagal baca secret dari DB, pakai .env: ${(err as Error).message}`);
     }
   }
-  return { sessionSecret: base.sessionSecret, password: base.password, user: base.user, dbAvailable: false };
+  return {
+    sessionSecret: base.sessionSecret,
+    refreshSecret: pickRefreshSecret(base.refreshSecret, base.sessionSecret),
+    password: base.password,
+    user: base.user,
+    dbAvailable: false,
+  };
 }
 
 /** Baca daftar server aktif dari DB; jika DB down, pakai .env. */

@@ -111,10 +111,13 @@ export async function registerRoutes(app) {
             upserted.push(s.name);
         }
         // sinkronkan juga secret penting dari .env ke DB (hanya kalau belum ada)
-        const existing = await db.getSecrets(["SESSION_SECRET", "DASHBOARD_PASSWORD", "DASHBOARD_USER"]);
+        const existing = await db.getSecrets(["SESSION_SECRET", "DASHBOARD_PASSWORD", "DASHBOARD_USER", "REFRESH_SECRET"]);
         const secretEntries = [];
         if (!existing["SESSION_SECRET"] && process.env["SESSION_SECRET"]) {
             secretEntries.push({ key: "SESSION_SECRET", value: process.env["SESSION_SECRET"], description: "Session JWT secret" });
+        }
+        if (!existing["REFRESH_SECRET"] && process.env["REFRESH_SECRET"]) {
+            secretEntries.push({ key: "REFRESH_SECRET", value: process.env["REFRESH_SECRET"], description: "Refresh JWT secret" });
         }
         if (!existing["DASHBOARD_PASSWORD"] && process.env["DASHBOARD_PASSWORD"]) {
             secretEntries.push({ key: "DASHBOARD_PASSWORD", value: process.env["DASHBOARD_PASSWORD"], description: "Password login dashboard" });

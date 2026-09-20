@@ -30,3 +30,5 @@ deploy/
 docker-compose.yml
 .env.*
 apps/*/.env
+
+.hermes/

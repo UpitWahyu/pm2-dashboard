@@ -16,6 +16,32 @@ function optional(name) {
     const value = process.env[name] ?? "";
     return value.length > 0 ? value : null;
 }
+/** Env integer positif; fallback ke default kalau kosong/tidak valid. */
+function positiveInt(name, fallback) {
+    const raw = process.env[name];
+    if (!raw)
+        return fallback;
+    const n = Number(raw);
+    if (Number.isFinite(n) && n > 0)
+        return Math.floor(n);
+    console.warn(`[config] ${name} tidak valid — memakai default ${fallback}`);
+    return fallback;
+}
+/**
+ * Pilih secret refresh: minimal 32 karakter. Kalau kosong/terlalu pendek,
+ * fallback ke SESSION_SECRET sambil mencetak warning.
+ */
+function pickRefreshSecret(candidate, sessionSecret) {
+    if (!candidate) {
+        console.warn("[config] REFRESH_SECRET tidak diset — memakai SESSION_SECRET");
+        return sessionSecret;
+    }
+    if (candidate.length < 32) {
+        console.warn("[config] REFRESH_SECRET kurang dari 32 karakter — memakai SESSION_SECRET");
+        return sessionSecret;
+    }
+    return candidate;
+}
 function serverRowToConfig(r) {
     return {
         id: r.id,
@@ -75,6 +101,10 @@ export async function loadConfig() {
         port,
         host: process.env["HOST"] ?? "127.0.0.1",
         sessionSecret,
+        refreshSecret: optional("REFRESH_SECRET") ?? "",
+        accessTokenTtlMinutes: positiveInt("ACCESS_TOKEN_TTL_MINUTES", 15),
+        refreshTokenTtlDays: positiveInt("REFRESH_TOKEN_TTL_DAYS", 7),
+        cookieSecure: (process.env["COOKIE_SECURE"] ?? "").toLowerCase() === "true",
         user,
         password,
         dbAvailable: false,
@@ -85,21 +115,26 @@ export async function loadConfig() {
  * Mengembalikan secret final + flag dbAvailable.
  */
 export async function resolveSecrets(base) {
-    let dbOk = false;
     if (await db.dbAvailable()) {
         try {
-            const rows = await db.getSecrets(["SESSION_SECRET", "DASHBOARD_PASSWORD", "DASHBOARD_USER"]);
-            dbOk = true;
+            const rows = await db.getSecrets(["SESSION_SECRET", "DASHBOARD_PASSWORD", "DASHBOARD_USER", "REFRESH_SECRET"]);
             const sessionSecret = rows["SESSION_SECRET"] ?? base.sessionSecret;
+            const refreshSecret = pickRefreshSecret(rows["REFRESH_SECRET"] ?? base.refreshSecret, sessionSecret);
             const password = rows["DASHBOARD_PASSWORD"] ?? base.password;
             const user = rows["DASHBOARD_USER"] ?? base.user;
-            return { sessionSecret, password, user, dbAvailable: true };
+            return { sessionSecret, refreshSecret, password, user, dbAvailable: true };
         }
         catch (err) {
             console.error(`[config] gagal baca secret dari DB, pakai .env: ${err.message}`);
         }
     }
-    return { sessionSecret: base.sessionSecret, password: base.password, user: base.user, dbAvailable: false };
+    return {
+        sessionSecret: base.sessionSecret,
+        refreshSecret: pickRefreshSecret(base.refreshSecret, base.sessionSecret),
+        password: base.password,
+        user: base.user,
+        dbAvailable: false,
+    };
 }
 /** Baca daftar server aktif dari DB; jika DB down, pakai .env. */
 export async function loadActiveServers() {

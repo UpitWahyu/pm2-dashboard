@@ -11,8 +11,19 @@ export interface DashboardConfig {
     port: number;
     host: string;
     sessionSecret: string;
+    refreshSecret: string;
+    accessTokenTtlMinutes: number;
+    refreshTokenTtlDays: number;
+    cookieSecure: boolean;
     user: string;
     password: string;
+    dbAvailable: boolean;
+}
+export interface ResolvedSecrets {
+    sessionSecret: string;
+    refreshSecret: string;
+    password: string;
+    user: string;
     dbAvailable: boolean;
 }
 declare function serverRowToConfig(r: ServerRow): ServerConfig;
@@ -29,12 +40,7 @@ export declare function loadConfig(): Promise<DashboardConfig>;
  * Ambil secret dari DB, fallback ke .env jika DB tidak tersedia.
  * Mengembalikan secret final + flag dbAvailable.
  */
-export declare function resolveSecrets(base: DashboardConfig): Promise<{
-    sessionSecret: string;
-    password: string;
-    user: string;
-    dbAvailable: boolean;
-}>;
+export declare function resolveSecrets(base: DashboardConfig): Promise<ResolvedSecrets>;
 /** Baca daftar server aktif dari DB; jika DB down, pakai .env. */
 export declare function loadActiveServers(): Promise<{
     servers: ServerConfig[];

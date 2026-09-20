@@ -10,6 +10,7 @@ const secrets = await resolveSecrets(base);
 let usingDb = false;
 try {
   await db.ensureSchema();
+  await db.deleteExpiredRefreshTokens();
   await serverStore.init();
   usingDb = true;
   console.log("[dashboard] database aktif — server & secret dimuat dari PostgreSQL");
@@ -22,6 +23,10 @@ const app = await buildApp({
   port: base.port,
   host: base.host,
   sessionSecret: secrets.sessionSecret,
+  refreshSecret: secrets.refreshSecret,
+  accessTokenTtlMinutes: base.accessTokenTtlMinutes,
+  refreshTokenTtlDays: base.refreshTokenTtlDays,
+  cookieSecure: base.cookieSecure,
   user: secrets.user,
   password: secrets.password,
 });

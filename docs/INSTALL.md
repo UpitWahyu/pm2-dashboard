@@ -92,8 +92,19 @@ PORT=3005
 # Host binding (0.0.0.0 untuk remote access, 127.0.0.1 untuk local only)
 HOST=0.0.0.0
 
-# Secret untuk JWT session (generate: openssl rand -hex 32)
+# Secret untuk JWT access token / session (generate: openssl rand -hex 32)
 SESSION_SECRET=your_session_secret_here
+
+# Secret terpisah untuk refresh token (WAJIB di produksi, min 32 karakter)
+# Jika dikosongkan, otomatis fallback ke SESSION_SECRET (tidak disarankan).
+REFRESH_SECRET=your_refresh_secret_here
+
+# Masa berlaku token (opsional)
+# ACCESS_TOKEN_TTL_MINUTES=15
+# REFRESH_TOKEN_TTL_DAYS=7
+
+# Set "true" hanya jika diakses via HTTPS (cookie secure)
+# COOKIE_SECURE=false
 
 # Login credentials
 DASHBOARD_USER=admin
@@ -279,6 +290,18 @@ CREATE TABLE servers (
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Refresh token (rotasi + revoke)
+CREATE TABLE refresh_tokens (
+  id SERIAL PRIMARY KEY,
+  token_hash TEXT UNIQUE NOT NULL,
+  username TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_used_at TIMESTAMPTZ,
+  expires_at TIMESTAMPTZ NOT NULL,
+  revoked_at TIMESTAMPTZ
+);
+CREATE INDEX refresh_tokens_username_idx ON refresh_tokens (username);
 ```
 
 ### Environment Variables Reference
@@ -287,14 +310,19 @@ CREATE TABLE servers (
 |----------|-------------|----------|---------|
 | `PORT` | Server port | Yes | 3005 |
 | `HOST` | Bind address | No | 127.0.0.1 |
-| `SESSION_SECRET` | JWT secret | Yes | - |
+| `SESSION_SECRET` | JWT secret (access token) | Yes | - |
+| `REFRESH_SECRET` | Secret terpisah refresh token, min 32 char | Yes* | fallback `SESSION_SECRET` |
+| `ACCESS_TOKEN_TTL_MINUTES` | Masa berlaku access token (menit) | No | 15 |
+| `REFRESH_TOKEN_TTL_DAYS` | Masa berlaku refresh token (hari) | No | 7 |
+| `COOKIE_SECURE` | Set cookie `secure` (butuh HTTPS) | No | false |
 | `DASHBOARD_USER` | Login username | Yes | - |
 | `DASHBOARD_PASSWORD` | Login password | Yes | - |
 | `DATABASE_URL` | PostgreSQL connection | No* | - |
 | `AGENT_TOKEN` | Auth token for agent | Yes | - |
 | `AGENT_NAME` | Server display name | No | hostname |
 
-*Database is optional; dashboard works with .env fallback.
+*Database is optional; dashboard works with .env fallback. `REFRESH_SECRET` wajib di
+produksi; jika kosong sistem fallback ke `SESSION_SECRET` dengan warning.
 
 ---
 
@@ -304,8 +332,9 @@ CREATE TABLE servers (
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/auth/login` | Login |
-| POST | `/api/auth/logout` | Logout |
+| POST | `/api/auth/login` | Login (access + refresh cookie) |
+| POST | `/api/auth/refresh` | Rotasi refresh token |
+| POST | `/api/auth/logout` | Logout (revoke + clear cookie) |
 | GET | `/api/auth/me` | Get current user |
 
 ### Server Management
@@ -377,9 +406,10 @@ netstat -tlnp | grep 3005
 
 1. **Jangan commit .env files** - sudah di .gitignore
 2. **Gunakan password kuat** - minimal 12 karakter
-3. **Enable HTTPS** - gunakan reverse proxy (Caddy/Nginx)
-4. **Restrict access** - gunakan firewall atau IP whitelist
-5. **Backup database** -定期 backup PostgreSQL
+3. **Set `REFRESH_SECRET` terpisah** - minimal 32 karakter, berbeda dari `SESSION_SECRET`
+4. **Enable HTTPS** - gunakan reverse proxy (Caddy/Nginx), lalu set `COOKIE_SECURE=true`
+5. **Restrict access** - gunakan firewall atau IP whitelist
+6. **Backup database** -定期 backup PostgreSQL
 
 ---
 

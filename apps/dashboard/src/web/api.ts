@@ -1,12 +1,46 @@
 import type { LogStream, LogTailResult, ProcessDetail, ProcessSummary, ServerSummary } from "@pm2-dashboard/shared";
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+// SINGLE-FLIGHT: banyak 401 bersamaan cukup memicu satu panggilan refresh.
+let refreshPromise: Promise<boolean> | null = null;
+
+async function performRefresh(): Promise<boolean> {
+  try {
+    const res = await fetch("/api/auth/refresh", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+function refreshSession(): Promise<boolean> {
+  if (!refreshPromise) {
+    refreshPromise = performRefresh().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+}
+
+function redirectToLogin(): void {
+  if (!window.location.pathname.startsWith("/login")) window.location.href = "/login";
+}
+
+async function request<T>(path: string, init: RequestInit = {}, allowRetry = true): Promise<T> {
   const res = await fetch(path, {
     ...init,
     headers: { ...(init.headers as Record<string, string> | undefined), "content-type": "application/json" },
   });
   if (res.status === 401) {
-    if (!window.location.pathname.startsWith("/login")) window.location.href = "/login";
+    // Endpoint auth sendiri tidak memicu refresh (hindari rekursi).
+    if (allowRetry && !path.startsWith("/api/auth/")) {
+      const ok = await refreshSession();
+      if (ok) return request<T>(path, init, false);
+    }
+    redirectToLogin();
     throw new Error("Unauthorized");
   }
   if (!res.ok) {
@@ -33,6 +67,7 @@ export const api = {
     request<LoginResult>("/api/auth/login", { method: "POST", body: JSON.stringify({ username, password }) }),
   logout: () => request<LoginResult>("/api/auth/logout", { method: "POST", body: "{}" }),
   me: () => request<{ username: string | null }>("/api/auth/me"),
+  refresh: () => refreshSession(),
   servers: () => request<{ servers: ServerSummary[] }>("/api/servers"),
   processes: (serverName: string) =>
     request<{ processes: ProcessSummary[] }>(`/api/servers/${encodeURIComponent(serverName)}/processes`),

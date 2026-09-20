@@ -12,6 +12,8 @@ export declare class ServerStore {
     /** Muat awal dari DB (atau .env fallback). */
     init(): Promise<void>;
     private setServers;
+    /** Seed store langsung (dipakai test / bootstrap tanpa DB). */
+    seed(list: ServerConfig[]): void;
     getServers(): ServerConfig[];
     getEnabledServers(): ServerConfig[];
     findByName(name: string): ServerConfig | undefined;
